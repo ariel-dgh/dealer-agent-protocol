@@ -1,3 +1,5 @@
+import { auditWebsiteReadiness, isValidPublicUrl } from "./dealer-ai-visibility-audit.mjs";
+
 const SUPABASE_URL = "https://dvnkcofnkmthlbhrkffl.supabase.co";
 const MAX_BODY_BYTES = 16_384;
 
@@ -42,10 +44,7 @@ function validEmail(value) {
 function publicUrl(value) {
   try {
     const url = new URL(value);
-    if (!["http:", "https:"].includes(url.protocol) || !url.hostname.includes(".")) return null;
-    const host = url.hostname.toLowerCase();
-    if (host === "localhost" || host.endsWith(".local") || host === "0.0.0.0" || host === "127.0.0.1" || host === "::1") return null;
-    if (/^(10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)) return null;
+    if (!isValidPublicUrl(url.toString())) return null;
     url.hash = "";
     return url.toString();
   } catch {
@@ -100,7 +99,35 @@ async function scan(request, env, url) {
   }
 }
 
-async function report(shortId, env) {
+async function websiteReadiness(homepageUrl, context) {
+  const safeUrl = publicUrl(homepageUrl);
+  if (!safeUrl) return { status: "unavailable", message: "The stored homepage URL is not eligible for a public scan." };
+  const cacheKey = new Request(`https://readiness-cache.dealeraivisibility.com/v20260905b/${encodeURIComponent(safeUrl)}`);
+  const cache = typeof caches !== "undefined" ? caches.default : null;
+  const cached = cache ? await cache.match(cacheKey) : null;
+  if (cached) return cached.json();
+  try {
+    const result = await auditWebsiteReadiness(safeUrl);
+    if (cache) {
+      const response = new Response(JSON.stringify(result), { headers: { "Cache-Control": "public, max-age=86400", "Content-Type": "application/json" } });
+      if (context?.waitUntil) context.waitUntil(cache.put(cacheKey, response));
+      else await cache.put(cacheKey, response);
+    }
+    return result;
+  } catch {
+    return { status: "unavailable", message: "Website-readiness evidence could not be collected during this request." };
+  }
+}
+
+function publicReport(value) {
+  const allowed = [
+    "id", "short_id", "domain", "homepage_url", "competitor_domain", "dealership_name",
+    "city", "overall_score", "category_scores", "platform_scores", "findings", "created_at",
+  ];
+  return Object.fromEntries(allowed.filter((key) => value?.[key] !== undefined).map((key) => [key, value[key]]));
+}
+
+async function report(shortId, env, context) {
   if (!/^[a-z0-9]{6,20}$/i.test(shortId)) return json({ message: "Invalid report ID." }, 400);
   try {
     const response = await supabase(env, "/rest/v1/rpc/get_report_by_short_id", { body: { p_short_id: shortId }, timeout: 15_000 });
@@ -108,7 +135,8 @@ async function report(shortId, env) {
     const value = Array.isArray(result) ? result[0] : result;
     if (!response.ok) return json({ message: "Report provider error." }, 502);
     if (!value) return json({ message: "Report not found." }, 404);
-    return json(value);
+    const readiness = await websiteReadiness(value.homepage_url, context);
+    return json({ ...publicReport(value), website_readiness: readiness });
   } catch {
     return json({ message: "The report is temporarily unavailable." }, 503);
   }
@@ -197,7 +225,7 @@ function secureAsset(response) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, context) {
     const url = new URL(request.url);
     if (url.hostname === "www.dealeraivisibility.com") {
       url.hostname = "dealeraivisibility.com";
@@ -206,7 +234,7 @@ export default {
     if (url.pathname === "/api/scan") return scan(request, env, url);
     if (url.pathname === "/api/premium") return premium(request, env, url);
     if (url.pathname === "/api/unsubscribe") return unsubscribe(request, env, url);
-    if (url.pathname.startsWith("/api/report/")) return report(url.pathname.split("/").filter(Boolean).pop(), env);
+    if (url.pathname.startsWith("/api/report/")) return report(url.pathname.split("/").filter(Boolean).pop(), env, context);
 
     const reportMatch = url.pathname.match(/^\/report\/([a-z0-9]{6,20})\/?$/i);
     if (reportMatch) return reportPage(request, env, reportMatch[1]);

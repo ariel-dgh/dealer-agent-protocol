@@ -16,7 +16,7 @@
   <meta name="twitter:description" content="{{REPORT_DESCRIPTION}}">
   <meta name="twitter:image" content="{{REPORT_IMAGE}}">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260905-a11y">
+  <link rel="stylesheet" href="/styles.css?v=20260905-methodology">
 </head>
 <body>
   <header class="report-header report-shell">
@@ -36,12 +36,21 @@
         <div class="score-copy"><div class="grade" id="score-grade"></div><h2 id="score-headline"></h2><p id="score-summary"></p><a class="button" href="#priorities">See the priorities ↓</a></div>
       </section>
       <section class="report-section">
-        <div class="report-section-head"><h2>Platform likelihood</h2><p>A directional reading of the public signals each major AI experience can use—not a guarantee of inclusion or ranking.</p></div>
+        <div class="report-section-head"><h2>Platform readiness estimate</h2><p>A directional estimate based on public website signals. These are not live buyer queries and are not a guarantee of inclusion, ranking, or recommendation.</p></div>
         <div class="score-grid" id="platform-scores"></div>
       </section>
       <section class="report-section">
         <div class="report-section-head"><h2>Signal health</h2><p>The six building blocks behind the overall visibility score.</p></div>
         <div class="score-grid" id="category-scores"></div>
+      </section>
+      <section class="report-section" id="website-readiness">
+        <div class="report-section-head"><h2>Website-readiness evidence</h2><p>A reproducible 75-point technical snapshot: schema markup, page discoverability, and AI file readiness. It is shown separately from the visibility score above.</p></div>
+        <div id="readiness-content" class="readiness-content" aria-live="polite"></div>
+        <p class="methodology-link"><a href="/methodology/">Read the complete scoring methodology and limitations →</a></p>
+      </section>
+      <section class="report-section observed-answers-note">
+        <div class="report-section-head"><h2>Live AI answer observations</h2><p>This free report does not claim that ChatGPT, Gemini, Perplexity, Claude, Google AI Overviews, or Copilot answered a live buyer query unless a dated response is displayed.</p></div>
+        <div class="truth-note"><b>NOT RUN IN THIS BASELINE</b><p>Live answer-engine spot checks vary by model, account, location, and date. They belong in the human-verified Dealer AEO Audit, where the exact query, response, citations, timestamp, and provider availability can be documented responsibly.</p></div>
       </section>
       <section class="report-section" id="priorities">
         <div class="report-section-head"><h2>What to fix next</h2><p>Open each finding to see the observed evidence, why it matters, and a concrete corrective action.</p></div>

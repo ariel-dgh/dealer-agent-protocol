@@ -21,6 +21,7 @@ Scores are directional diagnostics, not guarantees that any AI platform will ran
 ## Important pages
 
 - Home and free scan: https://dealeraivisibility.com/
+- Scoring methodology and limitations: https://dealeraivisibility.com/methodology/
 - Methodology disclaimer: https://dealeraivisibility.com/disclaimer/
 - Privacy: https://dealeraivisibility.com/privacy/
 - Terms: https://dealeraivisibility.com/terms/

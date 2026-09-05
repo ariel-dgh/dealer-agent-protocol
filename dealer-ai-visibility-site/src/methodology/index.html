@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dealer AI Visibility methodology — What the free scan tests</title>
+  <meta name="description" content="See the evidence, scoring rules, technical checks, limitations, and AI-platform methodology behind the free Dealer AI Visibility scan.">
+  <link rel="canonical" href="https://dealeraivisibility.com/methodology/">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://dealeraivisibility.com/methodology/">
+  <meta property="og:title" content="How Dealer AI Visibility measures a dealership">
+  <meta property="og:description" content="A transparent, reproducible methodology for dealership AI visibility and website readiness.">
+  <meta property="og:image" content="https://dealeraivisibility.com/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css?v=20260905-methodology">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"TechArticle","headline":"Dealer AI Visibility methodology","description":"The evidence and scoring rules behind the free Dealer AI Visibility scan.","dateModified":"2026-09-05","author":{"@type":"Person","name":"Ariel Coro"},"publisher":{"@type":"Organization","name":"Dealer Growth Hackers","url":"https://dealergrowthhackers.com/"},"mainEntityOfPage":"https://dealeraivisibility.com/methodology/"}
+  </script>
+</head>
+<body>
+  <header class="topbar shell">
+    <a class="brand" href="/" aria-label="Dealer AI Visibility home"><span class="brand-pulse" aria-hidden="true"><i></i></span><span>Dealer AI<br><strong>Visibility</strong></span></a>
+    <nav aria-label="Primary navigation"><a href="/#what-we-measure">What we measure</a><a href="/methodology/" aria-current="page">Methodology</a><a href="/#how-it-works">How it works</a></nav>
+    <a class="button button-small" href="/#scan">Run the scan <span aria-hidden="true">↘</span></a>
+  </header>
+  <main class="methodology-main">
+    <section class="methodology-hero shell">
+      <p class="kicker"><span></span> Transparent by design</p>
+      <h1>What the scan tests—and what it <em>does not claim.</em></h1>
+      <p class="hero-lede">Dealer AI Visibility observes public website evidence. Every score must trace back to something reachable, readable, and reproducible. Missing or unavailable evidence is labeled honestly.</p>
+      <div class="methodology-principles">
+        <article><b>OBSERVED</b><p>A page, tag, file, rule, or response was actually retrieved.</p></article>
+        <article><b>INFERRED</b><p>A platform-readiness estimate is calculated from public signals and labeled as an estimate.</p></article>
+        <article><b>UNAVAILABLE</b><p>A failed fetch or provider test is never presented as a negative brand result.</p></article>
+      </div>
+    </section>
+
+    <section class="methodology-block shell">
+      <div class="methodology-heading"><p class="kicker coral"><span></span> Technical readiness / 75</p><h2>Three pillars. Nineteen documented checks.</h2><p>The raw technical score is the sum of three 25-point pillars and is rescaled to 100. Optional artifacts are reported without inflating the score.</p></div>
+      <div class="methodology-pillars">
+        <article><span>01 / 25 POINTS</span><h3>Schema markup</h3><ul><li>AutoDealer or LocalBusiness: 8</li><li>FAQPage: 5</li><li>Review or AggregateRating: 5</li><li>Product or Vehicle: 4</li><li>Any schema present: 3</li></ul></article>
+        <article><span>02 / 25 POINTS</span><h3>Page discoverability</h3><ul><li>Meta description: 3</li><li>Open Graph: 3</li><li>Canonical: 2</li><li>H1: 3; two H2s: 3</li><li>FAQ-style answers: 3</li><li>Freshness: 2; language: 2</li><li>Image alt coverage: 2</li><li>Five internal links: 2</li></ul></article>
+        <article><span>03 / 25 POINTS</span><h3>AI file readiness</h3><ul><li>Substantive llms.txt: 10</li><li>Minimal llms.txt: 5</li><li>robots.txt exists: 5</li><li>AI policy open: up to 10</li><li>Partial restrictions: 5</li><li>AI crawlers blocked: 0 policy points</li><li>Sitemap and AI manifest: reported, not scored</li></ul></article>
+      </div>
+      <div class="formula"><b>FORMULA</b><span>(schema + page discoverability + AI files) ÷ 75 × 100</span><p>Grades: A 80–100 · B 65–79 · C 50–64 · D 35–49 · E 20–34 · F below 20</p></div>
+    </section>
+
+    <section class="methodology-block methodology-dark">
+      <div class="shell">
+        <div class="methodology-heading"><p class="kicker light"><span></span> Visibility baseline</p><h2>Six signal categories explain the commercial risk.</h2><p>The scan also groups evidence into crawler access, structured meaning, citability, technical health, authority, and brand connection. Platform readiness estimates are derived from those public signals; they are not transcripts of live AI conversations.</p></div>
+        <div class="limits-grid">
+          <article><h3>What the free scan can establish</h3><ul><li>Whether key public files and page elements are reachable</li><li>Whether dealer, vehicle, FAQ, and review structure is visible in returned HTML</li><li>Whether content supplies direct, current, internally connected answers</li><li>Which technical gaps deserve attention first</li></ul></article>
+          <article><h3>What requires human verification</h3><ul><li>Dated buyer-intent queries across live answer engines</li><li>Accuracy, citations, competitor inclusion, and market context</li><li>JavaScript-rendered evidence and vendor-specific implementation constraints</li><li>Prioritization, ownership, remediation, and proof of correction</li></ul></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="methodology-block shell">
+      <div class="methodology-heading"><p class="kicker coral"><span></span> Reliability rules</p><h2>Production failures we test against.</h2><p>The implementation includes automated regression coverage for the behaviors most likely to create misleading reports or security problems.</p></div>
+      <div class="test-contract">
+        <div><span>01</span><p>Score boundaries and 75-to-100 rescaling</p></div><div><span>02</span><p>Schema cap and page-signal scoring</p></div>
+        <div><span>03</span><p>Open, partial, blocked, and unconfigured robots policies</p></div><div><span>04</span><p>Direct, www, pointer, and minimal llms.txt discovery</p></div>
+        <div><span>05</span><p>Private-network and metadata URL rejection</p></div><div><span>06</span><p>Provider quota, authentication, outage, and timeout classification</p></div>
+        <div><span>07</span><p>Real dealership-name matching for live observations</p></div><div><span>08</span><p>Partial results preserved when a deadline expires</p></div>
+      </div>
+      <div class="truth-note"><b>LIVE AI ANSWERS</b><p>A provider failure must display as <strong>Unavailable</strong>, never “Not mentioned.” Live results require the exact query, date, provider, response, and citations. Without that evidence, Dealer AI Visibility labels a number as a readiness estimate.</p></div>
+      <div class="methodology-owner"><p>The original Dealer AEO Audit test framework was created by <strong>Ariel Coro</strong>. Dealer AI Visibility applies the reproducible automated subset and is operated by <strong>Dealer Growth Hackers</strong>.</p><a class="button" href="/#scan">Run the free scan →</a></div>
+    </section>
+  </main>
+  <footer><div class="shell footer-bottom"><span>© 2026 Dealer Growth Hackers</span><span><a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a> · <a href="/disclaimer/">Disclaimer</a></span></div></footer>
+  <script src="/analytics.js" defer></script>
+</body>
+</html>

@@ -166,7 +166,7 @@ def main() -> int:
 
     required_visibility_files = [
         "index.html", "styles.css", "app.js", "analytics.js", "report/index.html", "report.js",
-        "privacy/index.html", "terms/index.html", "disclaimer/index.html", "contact/index.html",
+        "methodology/index.html", "privacy/index.html", "terms/index.html", "disclaimer/index.html", "contact/index.html",
         "unsubscribe/index.html", "unsubscribe.js", "robots.txt", "sitemap.xml", "llms.txt",
         "favicon.svg", "site.webmanifest", "404.html", "og.png",
     ]

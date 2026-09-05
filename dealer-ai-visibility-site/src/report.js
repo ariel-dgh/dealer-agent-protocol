@@ -20,6 +20,30 @@
     return `<article class="finding${index === 0 ? " open" : ""}"><div class="finding-head"><span class="severity ${escapeHtml(severity)}">${escapeHtml(severity)}</span><h3>${escapeHtml(finding.title || "Visibility finding")}</h3><button class="finding-toggle" type="button" aria-expanded="${index === 0}">${index === 0 ? "CLOSE −" : "OPEN +"}</button></div><div class="finding-body"><div><b>WHAT WE FOUND</b><p>${escapeHtml(finding.foundSnippet || "The scan found an incomplete public signal.")}</p></div><div><b>WHY IT MATTERS</b><p>${escapeHtml(finding.whyItMatters || `This can affect visibility across ${platforms}.`)}</p></div><div><b>WHAT TO DO</b><p>${escapeHtml(finding.howToFix || "Review and strengthen this signal on the dealership website.")}</p></div></div></article>`;
   }
 
+  function readinessPillar(key, pillar) {
+    const labels = { schema: "Schema markup", discoverability: "Page discoverability", fileReadiness: "AI file readiness" };
+    const checks = Array.isArray(pillar?.checks) ? pillar.checks : [];
+    return `<article class="readiness-pillar"><div class="readiness-pillar-head"><div><span>${escapeHtml(labels[key] || titleCase(key))}</span><small>${Number(pillar?.score || 0)} / ${Number(pillar?.maxScore || 25)} points</small></div><strong>${Number(pillar?.score || 0)}</strong></div><div class="evidence-list">${checks.map((item) => {
+      const status = ["pass", "partial", "fail", "unavailable", "not_applicable"].includes(item.status) ? item.status : "unavailable";
+      const statusLabel = { pass: "Observed", partial: "Partial", fail: "Missing", unavailable: "Unavailable", not_applicable: "Optional" }[status];
+      const points = Number(item.maxPoints) > 0 ? `${Number(item.points || 0)}/${Number(item.maxPoints)} pts` : "Not scored";
+      return `<div class="evidence-row"><span class="evidence-status ${status}">${statusLabel}</span><div><b>${escapeHtml(item.label || "Signal")}</b><p>${escapeHtml(item.evidence || "No evidence detail returned.")}</p></div><small>${points}</small></div>`;
+    }).join("")}</div></article>`;
+  }
+
+  function renderReadiness(readiness) {
+    const target = document.querySelector("#readiness-content");
+    if (!readiness || readiness.status === "unavailable" || !readiness.pillars) {
+      target.innerHTML = `<div class="truth-note warning"><b>EVIDENCE UNAVAILABLE</b><p>${escapeHtml(readiness?.message || "The website could not be re-observed for this report. No technical result has been inferred.")}</p></div>`;
+      return;
+    }
+    const observed = readiness.observedAt ? new Date(readiness.observedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "this report load";
+    const complete = readiness.status === "complete";
+    const score = complete ? Number(readiness.score || 0) : "—";
+    const summary = complete ? `<b>Grade ${escapeHtml(readiness.grade || "—")}</b><br>${Number(readiness.rawScore || 0)} of ${Number(readiness.maxRawScore || 75)} documented points observed.` : `<b>Partial observation—no grade assigned</b><br>${Number(readiness.rawScore || 0)} points were verifiable, but one or more required resources could not be observed reliably.`;
+    target.innerHTML = `<div class="readiness-summary"><div><span>TECHNICAL READINESS</span><strong>${score}<small>/100</small></strong></div><p>${summary}<br>Re-checked ${escapeHtml(observed)}.</p></div><div class="readiness-grid">${Object.entries(readiness.pillars).map(([key, pillar]) => readinessPillar(key, pillar)).join("")}</div>`;
+  }
+
   async function loadReport() {
     try {
       const response = await fetch(`/api/report/${encodeURIComponent(reportId)}`, { headers: { accept: "application/json" } });
@@ -40,6 +64,7 @@
       document.querySelector("#score-summary").textContent = summary;
       document.querySelector("#platform-scores").innerHTML = scoreCards(report.platform_scores, { chatgpt: "ChatGPT", aiOverviews: "Google AI Overviews", perplexity: "Perplexity", gemini: "Gemini", claude: "Claude", bingCopilot: "Bing Copilot" });
       document.querySelector("#category-scores").innerHTML = scoreCards(report.category_scores, { crawlerAccess: "Crawler access", structuredData: "Structured meaning", citability: "Citability", technical: "Technical health", authority: "Authority", brandMentions: "Brand connection" });
+      renderReadiness(report.website_readiness);
       const findings = Array.isArray(report.findings) ? report.findings : [];
       const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
       findings.sort((a,b) => (severityOrder[a.severity] ?? 4) - (severityOrder[b.severity] ?? 4));
