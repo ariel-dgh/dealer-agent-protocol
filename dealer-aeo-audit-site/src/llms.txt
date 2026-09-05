@@ -1,0 +1,27 @@
+# Dealer AEO Audit
+
+> Dealer AEO Audit is the human-verified diagnostic and implementation-planning layer for automotive dealership AI visibility. It is operated by Dealer Growth Hackers. The framework was created by Ariel Coro.
+
+## Product distinction
+
+- Dealer AI Visibility (https://dealeraivisibility.com/) is the free automated baseline.
+- Dealer AEO Audit (https://dealeraeoaudit.com/) validates evidence, identifies root causes, assigns fixes, and defines verification.
+- DealershipMCP (https://dealershipmcp.com/) and Dealer Agent Gateway (https://dealeragentgateway.com/) provide implementation when a governed retail inventory and offer data layer is needed.
+- Dealer Agent Protocol (https://dealeragentprotocol.com/) is the open standard beneath compliant gateways.
+
+## Primary pages
+
+- https://dealeraeoaudit.com/ — positioning, deliverables, workflow, ecosystem, and audit request
+- https://dealeraeoaudit.com/methodology/ — 30-check, 10-dimension methodology and scoring
+- https://dealeraeoaudit.com/sample/ — fictional sample finding and work-order structure
+- https://dealeraeoaudit.com/disclaimer/ — methodology and AI output limitations
+- https://dealeraeoaudit.com/privacy/ — privacy practices
+- https://dealeraeoaudit.com/terms/ — public website terms
+- https://dealeraeoaudit.com/contact/ — contact information
+
+## Claims and boundaries
+
+- The audit does not guarantee that an AI system will cite or recommend a dealership.
+- AI answer observations are dated and can vary by platform, model, account, location, and prompt.
+- Public examples must not use a private pilot dealership or its data.
+- The audit does not require DMS, CRM, customer, credit, or deal data.

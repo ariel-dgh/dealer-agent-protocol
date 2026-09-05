@@ -174,6 +174,17 @@ def main() -> int:
         if not (ROOT / "dealer-ai-visibility-site" / "dist" / relative).is_file():
             failures.append(f"dealer-ai-visibility-site/dist/{relative}: missing generated visibility file")
     failures.extend(validate_internal_links(ROOT / "dealer-ai-visibility-site" / "dist"))
+
+    required_aeo_audit_files = [
+        "index.html", "styles.css", "app.js", "analytics.js", "methodology/index.html",
+        "sample/index.html", "privacy/index.html", "terms/index.html", "disclaimer/index.html",
+        "contact/index.html", "robots.txt", "sitemap.xml", "llms.txt", "favicon.svg",
+        "site.webmanifest", "404.html", "og.png",
+    ]
+    for relative in required_aeo_audit_files:
+        if not (ROOT / "dealer-aeo-audit-site" / "dist" / relative).is_file():
+            failures.append(f"dealer-aeo-audit-site/dist/{relative}: missing generated audit file")
+    failures.extend(validate_internal_links(ROOT / "dealer-aeo-audit-site" / "dist"))
     if failures:
         print("Deployment validation failed:", file=sys.stderr)
         for failure in failures:
@@ -183,7 +194,8 @@ def main() -> int:
     print(
         f"Validated {len(schema_paths)} canonical schema IDs, registry metadata, "
         f"{len(required_site_files)} protocol files, {len(required_product_files)} product files, "
-        f"{len(required_visibility_files)} visibility files, and {len(required_gateway_files)} gateway-site files."
+        f"{len(required_visibility_files)} visibility files, {len(required_aeo_audit_files)} AEO audit files, "
+        f"and {len(required_gateway_files)} gateway-site files."
     )
     return 0
 

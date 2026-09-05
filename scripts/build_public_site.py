@@ -20,6 +20,8 @@ PRODUCT_SOURCE = ROOT / "dealershipmcp-site" / "src"
 PRODUCT_DIST = ROOT / "dealershipmcp-site" / "dist"
 VISIBILITY_SOURCE = ROOT / "dealer-ai-visibility-site" / "src"
 VISIBILITY_DIST = ROOT / "dealer-ai-visibility-site" / "dist"
+AEO_AUDIT_SOURCE = ROOT / "dealer-aeo-audit-site" / "src"
+AEO_AUDIT_DIST = ROOT / "dealer-aeo-audit-site" / "dist"
 SPEC_SOURCE = ROOT / "spec" / "v0.1"
 
 
@@ -101,10 +103,15 @@ def main() -> int:
         shutil.rmtree(VISIBILITY_DIST)
     shutil.copytree(VISIBILITY_SOURCE, VISIBILITY_DIST)
 
+    if AEO_AUDIT_DIST.exists():
+        shutil.rmtree(AEO_AUDIT_DIST)
+    shutil.copytree(AEO_AUDIT_SOURCE, AEO_AUDIT_DIST)
+
     print(f"Built protocol site at {DIST}")
     print(f"Built gateway site at {GATEWAY_DIST}")
     print(f"Built DealershipMCP site at {PRODUCT_DIST}")
     print(f"Built Dealer AI Visibility site at {VISIBILITY_DIST}")
+    print(f"Built Dealer AEO Audit site at {AEO_AUDIT_DIST}")
     return 0
 
 
