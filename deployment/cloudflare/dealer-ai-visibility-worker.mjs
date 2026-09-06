@@ -1,7 +1,9 @@
 import { auditWebsiteReadiness, isValidPublicUrl } from "./dealer-ai-visibility-audit.mjs";
+import { ANSWER_AUDIT_VERSION, runAnswerAudit } from "./dealer-ai-visibility-answer-audit.mjs";
 
 const SUPABASE_URL = "https://dvnkcofnkmthlbhrkffl.supabase.co";
 const MAX_BODY_BYTES = 16_384;
+const ANSWER_AUDIT_DAILY_LIMIT = 3;
 
 const SECURITY_HEADERS = {
   "Content-Security-Policy": [
@@ -93,9 +95,175 @@ async function scan(request, env, url) {
     const response = await supabase(env, "/functions/v1/analyze-ai-visibility", { body: { dealershipName, city, homepageUrl, competitorUrl } });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) return json({ message: result.message || result.error || "The scan provider returned an error." }, response.status >= 500 ? 502 : response.status);
-    return json(result);
+    const shortId = clean(result.shortId || result.short_id || result.report?.short_id, 20);
+    let answerAudit = { status: "not_configured" };
+    if (shortId) {
+      try {
+        answerAudit = await scheduleAnswerAudit({ shortId, dealershipName, city, homepageUrl }, request, env);
+      } catch (error) {
+        console.error(JSON.stringify({ event: "answer_audit_schedule_failed", reportShortId: shortId, error: error?.message || String(error) }));
+        answerAudit = { status: "unavailable", message: "The live Answer Audit could not be scheduled. The baseline report is still available." };
+      }
+    }
+    return json({ ...result, answer_audit: answerAudit });
   } catch (error) {
     return json({ message: error.name === "TimeoutError" ? "The scan timed out. Please try again." : "The scan is temporarily unavailable." }, 503);
+  }
+}
+
+function answerAuditConfigured(env) {
+  return Boolean(env.AUDIT_DB && env.ANSWER_AUDIT_QUEUE && env.OPENAI_API_KEY && env.GEMINI_API_KEY && env.PERPLEXITY_API_KEY && env.ANTHROPIC_API_KEY);
+}
+
+function parseStoredJson(value, fallback) {
+  try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
+}
+
+async function hashAddress(value) {
+  const bytes = new TextEncoder().encode(String(value || "unknown"));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function consumeAnswerAuditAllowance(request, env) {
+  const ipHash = await hashAddress(request.headers.get("CF-Connecting-IP") || "unknown");
+  const day = new Date().toISOString().slice(0, 10);
+  return env.AUDIT_DB.prepare(`
+    INSERT INTO answer_audit_rate_limits (ip_hash, day, runs, updated_at)
+    VALUES (?, ?, 1, datetime('now'))
+    ON CONFLICT(ip_hash, day) DO UPDATE SET runs = runs + 1, updated_at = datetime('now')
+    WHERE answer_audit_rate_limits.runs < ?
+    RETURNING runs
+  `).bind(ipHash, day, ANSWER_AUDIT_DAILY_LIMIT).first();
+}
+
+async function scheduleAnswerAudit(input, request, env) {
+  if (!answerAuditConfigured(env)) return { status: "not_configured" };
+  const recent = await env.AUDIT_DB.prepare(`
+    SELECT id, status, vehicle_context_json, summary_json, completed_at
+    FROM answer_audit_jobs
+    WHERE domain = ? AND methodology_version = ?
+      AND status IN ('complete', 'partial')
+      AND completed_at >= datetime('now', '-24 hours')
+    ORDER BY completed_at DESC LIMIT 1
+  `).bind(new URL(input.homepageUrl).hostname.replace(/^www\./, ""), ANSWER_AUDIT_VERSION).first();
+  const jobId = crypto.randomUUID();
+  const domain = new URL(input.homepageUrl).hostname.replace(/^www\./, "");
+  if (recent) {
+    await env.AUDIT_DB.batch([
+      env.AUDIT_DB.prepare(`
+        INSERT INTO answer_audit_jobs
+          (id, report_short_id, domain, dealership_name, city, homepage_url, status, methodology_version, source_job_id, vehicle_context_json, summary_json, started_at, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `).bind(jobId, input.shortId, domain, input.dealershipName, input.city, input.homepageUrl, recent.status, ANSWER_AUDIT_VERSION, recent.id, recent.vehicle_context_json, recent.summary_json),
+      env.AUDIT_DB.prepare(`
+        INSERT INTO answer_audit_results
+          (job_id, question_id, dimension, provider, provider_label, model, prompt, status, answer, citations_json, observed_at, latency_ms, error_code, assessment_json)
+        SELECT ?, question_id, dimension, provider, provider_label, model, prompt, status, answer, citations_json, observed_at, latency_ms, error_code, assessment_json
+        FROM answer_audit_results WHERE job_id = ?
+      `).bind(jobId, recent.id),
+    ]);
+    return { status: recent.status, reportShortId: input.shortId, reused: true, completedAt: recent.completed_at };
+  }
+  const allowance = await consumeAnswerAuditAllowance(request, env);
+  if (!allowance) return { status: "rate_limited", message: "The daily live Answer Audit limit has been reached. The baseline report is still available." };
+  await env.AUDIT_DB.prepare(`
+    INSERT INTO answer_audit_jobs
+      (id, report_short_id, domain, dealership_name, city, homepage_url, status, methodology_version)
+    VALUES (?, ?, ?, ?, ?, ?, 'queued', ?)
+  `).bind(jobId, input.shortId, domain, input.dealershipName, input.city, input.homepageUrl, ANSWER_AUDIT_VERSION).run();
+  try {
+    await env.ANSWER_AUDIT_QUEUE.send({ jobId });
+  } catch (error) {
+    await env.AUDIT_DB.prepare("UPDATE answer_audit_jobs SET status = 'failed', error_code = 'queue_send_failed', completed_at = datetime('now') WHERE id = ?").bind(jobId).run();
+    throw error;
+  }
+  return { status: "queued", reportShortId: input.shortId };
+}
+
+async function answerAudit(shortId, env) {
+  if (!/^[a-z0-9]{6,20}$/i.test(shortId)) return { status: "invalid" };
+  if (!env.AUDIT_DB) return { status: "not_configured" };
+  try {
+    const job = await env.AUDIT_DB.prepare(`
+      SELECT id, report_short_id, domain, status, methodology_version, vehicle_context_json,
+        summary_json, error_code, created_at, started_at, completed_at
+      FROM answer_audit_jobs WHERE report_short_id = ? LIMIT 1
+    `).bind(shortId).first();
+    if (!job) return { status: answerAuditConfigured(env) ? "not_started" : "not_configured" };
+    let results = [];
+    if (["complete", "partial", "unavailable"].includes(job.status)) {
+      const query = await env.AUDIT_DB.prepare(`
+        SELECT question_id, dimension, provider, provider_label, model, prompt, status, answer,
+          citations_json, observed_at, latency_ms, error_code, assessment_json
+        FROM answer_audit_results WHERE job_id = ? ORDER BY question_id
+      `).bind(job.id).all();
+      results = (query.results || []).map((row) => ({
+        questionId: row.question_id,
+        dimension: row.dimension,
+        provider: row.provider,
+        providerLabel: row.provider_label,
+        model: row.model,
+        prompt: row.prompt,
+        status: row.status,
+        answer: row.answer,
+        citations: parseStoredJson(row.citations_json, []),
+        observedAt: row.observed_at,
+        latencyMs: row.latency_ms,
+        errorCode: row.error_code,
+        assessment: parseStoredJson(row.assessment_json, null),
+      }));
+    }
+    return {
+      status: job.status,
+      version: job.methodology_version,
+      reportShortId: job.report_short_id,
+      queryContext: parseStoredJson(job.vehicle_context_json, null),
+      summary: parseStoredJson(job.summary_json, null),
+      errorCode: job.error_code,
+      createdAt: job.created_at,
+      startedAt: job.started_at,
+      completedAt: job.completed_at,
+      results,
+      notice: "Automated public-web observations are evidence for review, not a guarantee of factual accuracy or current availability.",
+    };
+  } catch (error) {
+    console.error(JSON.stringify({ event: "answer_audit_read_failed", reportShortId: shortId, error: error?.message || String(error) }));
+    return { status: "unavailable", message: "Live Answer Audit evidence is temporarily unavailable." };
+  }
+}
+
+async function processAnswerAuditMessage(message, env) {
+  const jobId = clean(message.body?.jobId, 80);
+  if (!jobId) { message.ack(); return; }
+  const job = await env.AUDIT_DB.prepare(`
+    SELECT id, report_short_id, dealership_name, city, homepage_url, status
+    FROM answer_audit_jobs WHERE id = ? LIMIT 1
+  `).bind(jobId).first();
+  if (!job || ["complete", "partial", "unavailable"].includes(job.status)) { message.ack(); return; }
+  try {
+    await env.AUDIT_DB.prepare("UPDATE answer_audit_jobs SET status = 'running', started_at = COALESCE(started_at, datetime('now')), error_code = NULL WHERE id = ?").bind(jobId).run();
+    const audit = await runAnswerAudit({ dealershipName: job.dealership_name, city: job.city, homepageUrl: job.homepage_url }, env);
+    const statements = audit.results.map((row) => env.AUDIT_DB.prepare(`
+      INSERT OR REPLACE INTO answer_audit_results
+        (job_id, question_id, dimension, provider, provider_label, model, prompt, status, answer, citations_json, observed_at, latency_ms, error_code, assessment_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(jobId, row.questionId, row.dimension, row.provider, row.providerLabel, row.model, row.prompt, row.status, row.answer, JSON.stringify(row.citations), row.observedAt, row.latencyMs, row.errorCode, JSON.stringify(row.assessment)));
+    statements.push(env.AUDIT_DB.prepare(`
+      UPDATE answer_audit_jobs SET status = ?, methodology_version = ?, vehicle_context_json = ?, summary_json = ?, completed_at = datetime('now'), error_code = NULL
+      WHERE id = ?
+    `).bind(audit.status, audit.version, JSON.stringify(audit.queryContext), JSON.stringify(audit.summary), jobId));
+    await env.AUDIT_DB.batch(statements);
+    console.log(JSON.stringify({ event: "answer_audit_completed", jobId, reportShortId: job.report_short_id, status: audit.status, observed: audit.summary.observed, total: audit.summary.total }));
+    message.ack();
+  } catch (error) {
+    console.error(JSON.stringify({ event: "answer_audit_job_failed", jobId, attempt: message.attempts, error: error?.message || String(error) }));
+    if (message.attempts >= 3) {
+      await env.AUDIT_DB.prepare("UPDATE answer_audit_jobs SET status = 'failed', error_code = 'job_failed', completed_at = datetime('now') WHERE id = ?").bind(jobId).run();
+      message.ack();
+    } else {
+      message.retry({ delaySeconds: 60 });
+    }
   }
 }
 
@@ -136,7 +304,8 @@ async function report(shortId, env, context) {
     if (!response.ok) return json({ message: "Report provider error." }, 502);
     if (!value) return json({ message: "Report not found." }, 404);
     const readiness = await websiteReadiness(value.homepage_url, context);
-    return json({ ...publicReport(value), website_readiness: readiness });
+    const liveAnswerAudit = await answerAudit(shortId, env);
+    return json({ ...publicReport(value), website_readiness: readiness, answer_audit: liveAnswerAudit });
   } catch {
     return json({ message: "The report is temporarily unavailable." }, 503);
   }
@@ -234,6 +403,7 @@ export default {
     if (url.pathname === "/api/scan") return scan(request, env, url);
     if (url.pathname === "/api/premium") return premium(request, env, url);
     if (url.pathname === "/api/unsubscribe") return unsubscribe(request, env, url);
+    if (url.pathname.startsWith("/api/answer-audit/")) return json(await answerAudit(url.pathname.split("/").filter(Boolean).pop(), env));
     if (url.pathname.startsWith("/api/report/")) return report(url.pathname.split("/").filter(Boolean).pop(), env, context);
 
     const reportMatch = url.pathname.match(/^\/report\/([a-z0-9]{6,20})\/?$/i);
@@ -242,5 +412,8 @@ export default {
     if (shortMatch) return Response.redirect(`https://dealeraivisibility.com/report/${shortMatch[1]}`, 301);
 
     return secureAsset(await env.ASSETS.fetch(request));
+  },
+  async queue(batch, env) {
+    for (const message of batch.messages) await processAnswerAuditMessage(message, env);
   },
 };

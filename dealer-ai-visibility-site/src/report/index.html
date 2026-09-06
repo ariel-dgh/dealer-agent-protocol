@@ -16,7 +16,7 @@
   <meta name="twitter:description" content="{{REPORT_DESCRIPTION}}">
   <meta name="twitter:image" content="{{REPORT_IMAGE}}">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=20260905-methodology">
+  <link rel="stylesheet" href="/styles.css?v=20260906-answer-audit">
 </head>
 <body>
   <header class="report-header report-shell">
@@ -48,9 +48,12 @@
         <div id="readiness-content" class="readiness-content" aria-live="polite"></div>
         <p class="methodology-link"><a href="/methodology/">Read the complete scoring methodology and limitations →</a></p>
       </section>
-      <section class="report-section observed-answers-note">
-        <div class="report-section-head"><h2>Live AI answer observations</h2><p>This free report does not claim that ChatGPT, Gemini, Perplexity, Claude, Google AI Overviews, or Copilot answered a live buyer query unless a dated response is displayed.</p></div>
-        <div class="truth-note"><b>NOT RUN IN THIS BASELINE</b><p>Live answer-engine spot checks vary by model, account, location, and date. They belong in the human-verified Dealer AEO Audit, where the exact query, response, citations, timestamp, and provider availability can be documented responsibly.</p></div>
+      <section class="report-section answer-audit-section" id="answer-audit">
+        <div class="report-section-head"><div><p class="kicker coral"><span></span> 20 live answer observations</p><h2>5 questions. 4 AI engines.</h2></div><p>The same five buyer-intent questions are observed across ChatGPT, Gemini, Perplexity, and Claude. Every completed check includes its exact prompt, answer, sources, and timestamp.</p></div>
+        <div id="answer-audit-content" class="answer-audit-content" aria-live="polite">
+          <div class="truth-note"><b>CHECKING STATUS</b><p>Loading the live Answer Audit for this report.</p></div>
+        </div>
+        <p class="methodology-link"><a href="/methodology/#answer-audit-methodology">How the Answer Audit works and what it can prove →</a></p>
       </section>
       <section class="report-section" id="priorities">
         <div class="report-section-head"><h2>What to fix next</h2><p>Open each finding to see the observed evidence, why it matters, and a concrete corrective action.</p></div>
@@ -70,6 +73,6 @@
   </main>
   <footer><div class="report-shell footer-bottom"><span>© 2026 Dealer Growth Hackers</span><span><a href="/privacy/">Privacy</a> · <a href="/terms/">Terms</a> · <a href="/disclaimer/">Disclaimer</a></span></div></footer>
   <script src="/analytics.js" defer></script>
-  <script src="/report.js" defer></script>
+  <script src="/report.js?v=20260906-answer-audit" defer></script>
 </body>
 </html>
