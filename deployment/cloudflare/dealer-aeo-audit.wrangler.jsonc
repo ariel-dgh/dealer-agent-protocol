@@ -21,6 +21,6 @@
   "observability": { "enabled": true, "head_sampling_rate": 1 },
   "routes": [
     { "pattern": "dealeraeoaudit.com", "custom_domain": true },
-    { "pattern": "www.dealeraeoaudit.com", "custom_domain": true }
+    { "pattern": "www.dealeraeoaudit.com/*", "zone_name": "dealeraeoaudit.com" }
   ]
 }
