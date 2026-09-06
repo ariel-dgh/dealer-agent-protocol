@@ -1,12 +1,21 @@
 import { classifyEngineFailure, dealerNameMentioned, normalizeDomain } from "./dealer-ai-visibility-audit.mjs";
 
-export const ANSWER_AUDIT_VERSION = "2026-09-06.2";
+export const ANSWER_AUDIT_VERSION = "2026-09-06.4";
+
+export const LOVABLE_ANSWER_AUDIT_URL = "https://oadbcunlzqkgxunoedji.supabase.co/functions/v1/test-ai-visibility";
 
 export const PROVIDERS = {
-  openai: { label: "ChatGPT", defaultModel: "gpt-5" },
+  openai: { label: "ChatGPT", defaultModel: "gpt-4o-mini" },
   gemini: { label: "Gemini", defaultModel: "gemini-2.5-flash" },
   perplexity: { label: "Perplexity", defaultModel: "sonar" },
   anthropic: { label: "Claude", defaultModel: "claude-sonnet-4-20250514" },
+};
+
+const LOVABLE_ENGINE_PROVIDERS = {
+  "OpenAI ChatGPT": "openai",
+  "Google Gemini": "gemini",
+  Claude: "anthropic",
+  Perplexity: "perplexity",
 };
 
 export const ANSWER_AUDIT_LEVELS = [
@@ -324,6 +333,116 @@ export function summarizeAnswerAudit(results) {
     levels,
     dimensions,
   };
+}
+
+function normalizeFailureCode(value, fallback = "provider_down") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized.includes("quota") || normalized.includes("429")) return "quota_exceeded";
+  if (normalized.includes("auth") || normalized.includes("401") || normalized.includes("403")) return "auth_error";
+  if (normalized.includes("timeout") || normalized.includes("aborted")) return "timeout";
+  if (normalized.includes("network")) return "network_error";
+  if (normalized.includes("not_configured") || normalized.includes("not configured")) return "not_configured";
+  return fallback;
+}
+
+function upstreamProviderHealth(value) {
+  const health = Array.isArray(value?.engineHealth) ? value.engineHealth : [];
+  return Object.fromEntries(health.map((item) => {
+    const provider = LOVABLE_ENGINE_PROVIDERS[item?.engine];
+    if (!provider) return null;
+    const codes = Array.isArray(item?.errorCodes) ? item.errorCodes.map((code) => normalizeFailureCode(code)) : [];
+    const successes = Number(item?.successes || 0);
+    const reportedStatus = String(item?.status || "unavailable").toLowerCase();
+    return [provider, {
+      provider,
+      label: PROVIDERS[provider].label,
+      status: successes === 0 && reportedStatus === "ok" ? "unavailable" : reportedStatus,
+      successes,
+      total: 5,
+      errorCodes: unique(codes),
+    }];
+  }).filter(Boolean));
+}
+
+function citationsFromAnswer(value) {
+  const urls = [...String(value || "").matchAll(/https?:\/\/[^\s)\]}>'\"]+/gi)].map((match) => match[0]);
+  return dedupeCitations(urls);
+}
+
+export function normalizeLovableAnswerAudit(value, input) {
+  const upstreamLevels = Array.isArray(value?.levels) ? value.levels : [];
+  const upstreamHealth = upstreamProviderHealth(value);
+  const observedAt = boundedText(value?.timestamp, 80) || new Date().toISOString();
+  const results = ANSWER_AUDIT_QUESTIONS.map((question) => {
+    const level = upstreamLevels.find((item) => Number(item?.level) === question.level);
+    const engineName = Object.entries(LOVABLE_ENGINE_PROVIDERS).find(([, provider]) => provider === question.provider)?.[0];
+    const engine = Array.isArray(level?.engineResults) ? level.engineResults.find((item) => item?.engine === engineName) : null;
+    const answer = boundedText(engine?.response);
+    const unavailable = !engine || Boolean(engine?.unavailable) || (!answer && upstreamHealth[question.provider]?.successes === 0);
+    const healthCode = upstreamHealth[question.provider]?.errorCodes?.[0];
+    const errorCode = unavailable ? (healthCode || normalizeFailureCode(answer, engine ? "provider_down" : "missing_result")) : null;
+    const citations = unavailable ? [] : citationsFromAnswer(answer);
+    const assessment = unavailable ? null : { ...assessAnswer(answer, citations, input), legacyConfidence: Number(engine?.confidence || 0) };
+    return {
+      questionId: question.id,
+      dimension: question.dimension,
+      provider: question.provider,
+      providerLabel: PROVIDERS[question.provider].label,
+      model: PROVIDERS[question.provider].defaultModel,
+      prompt: boundedText(level?.query, 1_200) || materializeQuestion(question, input).split("\n\nDealership being measured:")[0],
+      status: unavailable ? "unavailable" : assessment.dealerMentioned ? "mentioned" : "not_mentioned",
+      answer: unavailable ? "" : answer,
+      citations,
+      observedAt,
+      latencyMs: 0,
+      errorCode,
+      assessment,
+    };
+  });
+  const summary = summarizeAnswerAudit(results);
+  summary.providers = summary.providers.map((item) => {
+    const upstream = upstreamHealth[item.provider];
+    if (!upstream) return item;
+    const status = item.successes === item.total
+      ? (upstream.status === "ok" ? "ok" : upstream.status)
+      : item.successes > 0
+        ? "degraded"
+        : upstream.status === "ok" ? "unavailable" : upstream.status;
+    return { ...item, status, errorCodes: unique([...item.errorCodes, ...upstream.errorCodes]) };
+  });
+  return {
+    version: ANSWER_AUDIT_VERSION,
+    status: summary.observed === results.length ? "complete" : summary.observed ? "partial" : "unavailable",
+    startedAt: observedAt,
+    completedAt: observedAt,
+    queryContext: { brand: deriveBrand(input), ...parseMarket(input.city) },
+    summary,
+    results,
+    notice: "Automated public-web observations are evidence for review, not a guarantee of factual accuracy or current availability. The provider function does not return a structured citation list; source URLs embedded in answers are shown when present.",
+  };
+}
+
+export async function runLovableAnswerAudit(input, fetchImpl = fetch, endpoint = LOVABLE_ANSWER_AUDIT_URL) {
+  const market = parseMarket(input.city);
+  const response = await fetchImpl(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      brand: deriveBrand(input),
+      domain: normalizeDomain(input.homepageUrl),
+      city: market.city,
+      state: market.state,
+      dealershipName: boundedText(input.dealershipName, 160),
+    }),
+    signal: AbortSignal.timeout(45_000),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body?.error) {
+    const error = new Error(body?.error || `lovable_answer_audit_http_${response.status}`);
+    error.code = classifyEngineFailure(response.status, JSON.stringify(body));
+    throw error;
+  }
+  return normalizeLovableAnswerAudit(body, input);
 }
 
 export async function runAnswerAudit(input, env, fetchImpl = fetch, questions = ANSWER_AUDIT_QUESTIONS) {

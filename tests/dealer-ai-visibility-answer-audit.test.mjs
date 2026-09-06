@@ -7,12 +7,14 @@ import {
   deriveBrand,
   extractVehicleContext,
   materializeQuestion,
+  normalizeLovableAnswerAudit,
   parseAnthropic,
   parseGemini,
   parseOpenAI,
   parseMarket,
   parsePerplexity,
   runAnswerAudit,
+  runLovableAnswerAudit,
   runQuestion,
   summarizeAnswerAudit,
 } from "../deployment/cloudflare/dealer-ai-visibility-answer-audit.mjs";
@@ -123,4 +125,87 @@ test("complete mocked run executes every question and records evidence", async (
   assert.deepEqual(audit.queryContext, { brand: "Buick or GMC", city: "Example City", state: "AL" });
   assert.equal(audit.summary.aiScore, 25);
   assert.equal(audit.summary.levelsPassedCount, 5);
+});
+
+function lovableFixture() {
+  const engines = ["OpenAI ChatGPT", "Google Gemini", "Claude", "Perplexity"];
+  return {
+    aiScore: 25,
+    levels: ANSWER_AUDIT_LEVELS.map((level) => ({
+      level: level.level,
+      name: level.label,
+      passed: true,
+      points: level.points,
+      maxPoints: level.points,
+      query: level.question.replaceAll("{brand}", "Buick or GMC").replaceAll("{city}", "Example City").replaceAll("{state}", "AL"),
+      engineResults: engines.map((engine) => ({ engine, mentioned: true, response: "Example Buick GMC is recommended. See https://exampledealer.com/.", confidence: 1 })),
+    })),
+    engineHealth: engines.map((engine) => ({ engine, status: "ok", successes: 5, errorCodes: [] })),
+    timestamp: "2026-09-06T03:00:00.000Z",
+  };
+}
+
+test("Lovable audit output is normalized into 20 stable evidence rows", () => {
+  const audit = normalizeLovableAnswerAudit(lovableFixture(), input);
+  assert.equal(audit.status, "complete");
+  assert.equal(audit.results.length, 20);
+  assert.equal(audit.summary.observed, 20);
+  assert.equal(audit.summary.mentioned, 20);
+  assert.equal(audit.summary.aiScore, 25);
+  assert.equal(audit.summary.cited, 20);
+  assert.equal(audit.results[0].model, "gpt-4o-mini");
+  assert.equal(audit.results[0].observedAt, "2026-09-06T03:00:00.000Z");
+  assert.match(audit.notice, /does not return a structured citation list/);
+});
+
+test("Lovable provider failures stay unavailable and never become negative mentions", () => {
+  const fixture = lovableFixture();
+  fixture.levels.forEach((level) => {
+    const claude = level.engineResults.find((item) => item.engine === "Claude");
+    Object.assign(claude, { mentioned: false, response: "Error: request timed out", unavailable: true, confidence: 0 });
+  });
+  fixture.engineHealth.find((item) => item.engine === "Claude").status = "unavailable";
+  fixture.engineHealth.find((item) => item.engine === "Claude").successes = 0;
+  fixture.engineHealth.find((item) => item.engine === "Claude").errorCodes = ["TIMEOUT"];
+  const audit = normalizeLovableAnswerAudit(fixture, input);
+  const claudeRows = audit.results.filter((item) => item.provider === "anthropic");
+  assert.equal(claudeRows.every((item) => item.status === "unavailable"), true);
+  assert.equal(claudeRows.every((item) => item.errorCode === "timeout"), true);
+  assert.equal(audit.summary.providers.find((item) => item.provider === "anthropic").status, "unavailable");
+});
+
+test("Lovable's zero-success health bug cannot display a green provider", () => {
+  const fixture = lovableFixture();
+  fixture.levels.forEach((level) => {
+    const gemini = level.engineResults.find((item) => item.engine === "Google Gemini");
+    Object.assign(gemini, { mentioned: false, response: "", unavailable: true, confidence: 0 });
+  });
+  const health = fixture.engineHealth.find((item) => item.engine === "Google Gemini");
+  Object.assign(health, { status: "ok", successes: 0, errorCodes: [] });
+  const audit = normalizeLovableAnswerAudit(fixture, input);
+  assert.equal(audit.summary.providers.find((item) => item.provider === "gemini").status, "unavailable");
+});
+
+test("Lovable's weak generic-word match cannot create a false dealer mention", () => {
+  const fixture = lovableFixture();
+  fixture.levels.forEach((level) => {
+    const openai = level.engineResults.find((item) => item.engine === "OpenAI ChatGPT");
+    Object.assign(openai, { mentioned: true, response: "This answer mentions a dealer but not the measured business.", confidence: 0.6 });
+  });
+  const audit = normalizeLovableAnswerAudit(fixture, input);
+  assert.equal(audit.results.filter((item) => item.provider === "openai").every((item) => item.status === "not_mentioned"), true);
+  assert.equal(audit.summary.providers.find((item) => item.provider === "openai").status, "ok");
+});
+
+test("Lovable adapter sends only dealer context and no provider credentials", async () => {
+  let captured;
+  const fetchMock = async (url, init) => {
+    captured = { url, init, body: JSON.parse(init.body) };
+    return new Response(JSON.stringify(lovableFixture()), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const audit = await runLovableAnswerAudit(input, fetchMock, "https://audit.example/functions/v1/test-ai-visibility");
+  assert.equal(captured.url, "https://audit.example/functions/v1/test-ai-visibility");
+  assert.deepEqual(captured.body, { brand: "Buick or GMC", domain: "exampledealer.com", city: "Example City", state: "AL", dealershipName: "Example Buick GMC" });
+  assert.deepEqual(Object.keys(captured.init.headers), ["Content-Type"]);
+  assert.equal(audit.results.length, 20);
 });

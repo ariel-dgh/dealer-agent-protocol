@@ -1,5 +1,5 @@
 import { auditWebsiteReadiness, isValidPublicUrl } from "./dealer-ai-visibility-audit.mjs";
-import { ANSWER_AUDIT_VERSION, runAnswerAudit } from "./dealer-ai-visibility-answer-audit.mjs";
+import { ANSWER_AUDIT_VERSION, LOVABLE_ANSWER_AUDIT_URL, runLovableAnswerAudit } from "./dealer-ai-visibility-answer-audit.mjs";
 
 const SUPABASE_URL = "https://dvnkcofnkmthlbhrkffl.supabase.co";
 const MAX_BODY_BYTES = 16_384;
@@ -112,7 +112,7 @@ async function scan(request, env, url) {
 }
 
 function answerAuditConfigured(env) {
-  return Boolean(env.AUDIT_DB && env.ANSWER_AUDIT_QUEUE && env.OPENAI_API_KEY && env.GEMINI_API_KEY && env.PERPLEXITY_API_KEY && env.ANTHROPIC_API_KEY);
+  return Boolean(env.AUDIT_DB && env.ANSWER_AUDIT_QUEUE);
 }
 
 function parseStoredJson(value, fallback) {
@@ -243,7 +243,11 @@ async function processAnswerAuditMessage(message, env) {
   if (!job || ["complete", "partial", "unavailable"].includes(job.status)) { message.ack(); return; }
   try {
     await env.AUDIT_DB.prepare("UPDATE answer_audit_jobs SET status = 'running', started_at = COALESCE(started_at, datetime('now')), error_code = NULL WHERE id = ?").bind(jobId).run();
-    const audit = await runAnswerAudit({ dealershipName: job.dealership_name, city: job.city, homepageUrl: job.homepage_url }, env);
+    const audit = await runLovableAnswerAudit(
+      { dealershipName: job.dealership_name, city: job.city, homepageUrl: job.homepage_url },
+      fetch,
+      env.LOVABLE_ANSWER_AUDIT_URL || LOVABLE_ANSWER_AUDIT_URL,
+    );
     const statements = audit.results.map((row) => env.AUDIT_DB.prepare(`
       INSERT OR REPLACE INTO answer_audit_results
         (job_id, question_id, dimension, provider, provider_label, model, prompt, status, answer, citations_json, observed_at, latency_ms, error_code, assessment_json)
