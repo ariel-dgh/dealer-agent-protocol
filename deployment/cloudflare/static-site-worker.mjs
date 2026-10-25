@@ -2,7 +2,7 @@ const SECURITY_HEADERS = {
   "Content-Security-Policy": [
     "default-src 'self'",
     "base-uri 'self'",
-    "connect-src 'self' https://mcp.dealeragentgateway.com",
+    "connect-src 'self' https://mcp.dealeragentgateway.com https://demo.dealeragentprotocol.com",
     "font-src 'self' https://fonts.gstatic.com",
     "form-action 'self'",
     "frame-ancestors 'none'",

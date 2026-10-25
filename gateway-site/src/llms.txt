@@ -4,6 +4,13 @@ Dealer Agent Gateway is operated MCP infrastructure implementing Dealer Agent Pr
 
 Dealer Agent Protocol is the open specification and conformance contract. Dealer Agent Gateway is the running service. The founding Howard Bentley Buick GMC pilot uses a dealer-authorized daily feed; availability and complete pricing require live dealer verification.
 
+## Public demo gateway (synthetic data)
+
+- Connect a client: https://dealeragentprotocol.com/try/
+- MCP endpoint: https://demo.dealeragentprotocol.com/mcp
+- Manifest: https://demo.dealeragentprotocol.com/manifest.json
+- Policy: https://demo.dealeragentprotocol.com/policy
+
 ## Canonical resources
 
 - Product website: https://dealershipmcp.com/

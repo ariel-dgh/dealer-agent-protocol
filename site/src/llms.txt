@@ -7,6 +7,17 @@ DAP is not Auto Agent Protocol (AAP). AAP is an A2A automotive profile. DAP is M
 
 Dealer Agent Protocol is the open specification and conformance contract. Dealer Agent Gateway is open reference software that implements the protocol. MCP is the transport used between agents and gateways.
 
+## Public demo gateway (synthetic data)
+
+- Connect Claude, ChatGPT, Claude Code, or Cursor: https://dealeragentprotocol.com/try/
+- MCP endpoint (Streamable HTTP, no sign-in): https://demo.dealeragentprotocol.com/mcp
+- Manifest: https://demo.dealeragentprotocol.com/manifest.json
+- Static discovery example: https://demo.dealeragentprotocol.com/.well-known/dealer-agent.json
+- CSV feed example: https://demo.dealeragentprotocol.com/feeds/inventory.csv
+- Consent binding keys: https://demo.dealeragentprotocol.com/.well-known/jwks.json
+- Policy: https://demo.dealeragentprotocol.com/policy
+- Data status: synthetic Example Motors Group fleet; every profile including consented handoff; nothing is delivered to a dealership
+
 ## Canonical documents
 
 - Human documentation: https://dealeragentprotocol.com/docs/

@@ -59,10 +59,11 @@ def render_comparison(destination: Path, product: bool) -> None:
         "@type": "FAQPage",
         "mainEntity": [
             {"@type": "Question", "name": "Is Dealer Agent Protocol the same as Auto Agent Protocol?", "acceptedAnswer": {"@type": "Answer", "text": "No. AAP is an A2A automotive profile. DAP is an MCP-native retail data and disclosure standard. They can run together through an adapter."}},
+            {"@type": "Question", "name": "Is Dealer Agent Protocol competing with AutomotiveMCP?", "acceptedAnswer": {"@type": "Answer", "text": "They overlap on inventory and pricing. AutomotiveMCP is a broad catalog plus a multi-vendor gateway and consent-portability spec; DAP is a narrow inventory-truth profile covering the freshness and price substantiation AutomotiveMCP lists as open gaps. A DAP gateway can serve the inventory domain behind an AutomotiveMCP gateway."}},
             {"@type": "Question", "name": "Can another vendor implement Dealer Agent Protocol?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. The specification, schemas, tests, examples, and open gateway are Apache-2.0 licensed."}},
         ],
     }
-    article = {"@context": "https://schema.org", "@type": "TechArticle", "headline": "Compare dealer agent standards", "dateModified": "2026-09-02", "author": {"@type": "Person", "name": "Ariel Coro"}, "url": home}
+    article = {"@context": "https://schema.org", "@type": "TechArticle", "headline": "Compare dealer agent standards", "dateModified": "2026-10-25", "author": {"@type": "Person", "name": "Ariel Coro"}, "url": home}
     page = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="A dated, sourced comparison of Dealer Agent Protocol, DMC-12, Auto Agent Protocol, and AutomotiveMCP."><link rel="canonical" href="{home}"><link rel="stylesheet" href="{stylesheet}"><title>Compare dealer agent standards</title><script type="application/ld+json">{json.dumps(article)}</script><script type="application/ld+json">{json.dumps(faq)}</script></head><body><header class="{header_class}">{brand}{navigation}</header><main class="{main_class}">{content}</main></body></html>'''
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "index.html").write_text(page, encoding="utf-8")
