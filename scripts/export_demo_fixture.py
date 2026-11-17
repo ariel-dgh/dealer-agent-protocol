@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Export the synthetic demo fleet consumed by the public demo gateway worker.
 
-The worker at deployment/cloudflare/reference-gateway-worker.mjs serves
+The worker at deployment/cloudflare/demo-gateway-core.mjs (entry: reference-gateway-worker.mjs) serves
 clearly labeled synthetic data for Example Motors Group. This script builds
 that data from the same fixture helpers the conformance suite exercises, adds
 a larger fleet so searches and filters are meaningful, validates every record

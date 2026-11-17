@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 import { Validator } from "@cfworker/json-schema";
 
-import worker, { TOOL_SPECS } from "../deployment/cloudflare/reference-gateway-worker.mjs";
+import worker, { TOOL_SPECS } from "../deployment/cloudflare/demo-gateway-core.mjs";
 
 const ORIGIN = "https://demo.dealeragentprotocol.com";
 const SCHEMA_DIR = new URL("../spec/v0.1/schemas/", import.meta.url);
