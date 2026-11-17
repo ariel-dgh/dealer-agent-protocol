@@ -260,3 +260,18 @@ test("plain HTTP surface: health, manifest, well-known discovery, policy, llms.t
   const missing = await worker.fetch(new Request(`${ORIGIN}/nothing`), env);
   assert.equal(missing.status, 404);
 });
+
+test("text summaries of data tools label the data as synthetic", async () => {
+  const base = { organization_id: ORG, rooftop_id: DOWNTOWN, vehicle_id: "veh.2026-001" };
+  const results = [
+    await call("dealeragent.inventory.search", { organization_id: ORG }),
+    await call("dealeragent.inventory.get_vehicle", base),
+    await call("dealeragent.inventory.verify_availability", base),
+    await call("dealeragent.pricing.get_disclosure", base),
+    await call("dealeragent.inventory.get_used_vehicle_details", { organization_id: ORG, rooftop_id: DOWNTOWN, vehicle_id: "veh.2024-002" }),
+  ];
+  for (const result of results) {
+    assert.equal(result.isError, false);
+    assert.match(result.content[0].text, /synthetic/i);
+  }
+});
