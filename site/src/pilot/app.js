@@ -7,6 +7,10 @@ const startedAt = document.querySelector("#form-started-at");
 if (startedAt) startedAt.value = String(Date.now());
 
 const params = new URLSearchParams(window.location.search);
+const sourcePath = form?.elements.namedItem("source_path");
+if (sourcePath && params.get("source") === "dealeragentgateway.com") {
+  sourcePath.value = "/pilot/?source=dealeragentgateway.com";
+}
 if (params.get("submitted") === "1") {
   successPanel.hidden = false;
   form.hidden = true;

@@ -1,3 +1,5 @@
+import { dealershipMcpLeadEmail, sendLeadEmails } from "./lead-email.mjs";
+
 const SECURITY_HEADERS = {
   "Content-Security-Policy": "default-src 'self'; base-uri 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; upgrade-insecure-requests",
   "Cross-Origin-Opener-Policy": "same-origin",
@@ -41,7 +43,7 @@ async function body(request) {
   throw new Error("unsupported_media_type");
 }
 
-async function submitAudit(request, env, url) {
+async function submitAudit(request, env, url, context) {
   if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
   const origin = request.headers.get("Origin");
   if (origin && origin !== url.origin) return json({ error: "origin_not_allowed" }, 403);
@@ -71,17 +73,18 @@ async function submitAudit(request, env, url) {
   } catch {
     return json({ error: "application_not_saved" }, 500);
   }
+  context.waitUntil(sendLeadEmails(env.EMAIL, dealershipMcpLeadEmail(application, id)));
   return json({ accepted: true, application_id: id }, 201);
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, context) {
     const url = new URL(request.url);
     if (url.hostname === "www.dealershipmcp.com") {
       url.hostname = "dealershipmcp.com";
       return Response.redirect(url.toString(), 301);
     }
-    if (url.pathname === "/api/audit-applications") return submitAudit(request, env, url);
+    if (url.pathname === "/api/audit-applications") return submitAudit(request, env, url, context);
     const response = await env.ASSETS.fetch(request);
     const headers = new Headers(response.headers);
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);

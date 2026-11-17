@@ -1,3 +1,5 @@
+import { protocolLeadEmail, sendLeadEmails } from "./lead-email.mjs";
+
 const SECURITY_HEADERS = {
   "Content-Security-Policy": [
     "default-src 'self'",
@@ -74,7 +76,7 @@ async function readPilotBody(request) {
   throw new Error("unsupported_media_type");
 }
 
-async function handlePilotApplication(request, env, requestUrl) {
+async function handlePilotApplication(request, env, requestUrl, context) {
   if (request.method !== "POST") {
     return jsonResponse({ error: "method_not_allowed" }, 405);
   }
@@ -162,6 +164,8 @@ async function handlePilotApplication(request, env, requestUrl) {
     return jsonResponse({ error: "application_not_saved" }, 500);
   }
 
+  context.waitUntil(sendLeadEmails(env.EMAIL, protocolLeadEmail(application, id)));
+
   if (wantsHtml) {
     return Response.redirect(`${requestUrl.origin}/pilot/?submitted=1`, 303);
   }
@@ -169,10 +173,10 @@ async function handlePilotApplication(request, env, requestUrl) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, context) {
     const requestUrl = new URL(request.url);
     if (requestUrl.hostname === PILOT_HOST && requestUrl.pathname === PILOT_PATH) {
-      return handlePilotApplication(request, env, requestUrl);
+      return handlePilotApplication(request, env, requestUrl, context);
     }
 
     // Version the asset lookup so a newly deployed HTML document cannot be
