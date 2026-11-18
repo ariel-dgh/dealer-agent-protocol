@@ -2,13 +2,11 @@
 
 This is a public, synthetic Dealer Agent Protocol gateway. It is for builders who want to connect Claude, ChatGPT, Cursor, or MCP Inspector and see how a dealership endpoint is supposed to behave.
 
-**The published endpoint is not live yet.** When it is, the URL will be:
+The published endpoint is live at:
 
 `https://demo.dealeragentprotocol.com/mcp`
 
-Until then, run the gateway locally with `wrangler dev --local` and use `http://127.0.0.1:8787/mcp` (or whatever port Wrangler prints).
-
-There is no sign-in. The data is synthetic Example Motors Group inventory: 13 vehicles across two rooftops. Nothing here is a real car, a real price, or a real dealership, and nothing is forwarded to a store.
+There is no sign-in. The data is synthetic Example Motors Group inventory: 13 vehicles across two rooftops. Nothing here is a real car, a real price, or a real dealership, and nothing is forwarded to a store. To run a local copy instead, use `wrangler dev --local` and point your client at `http://127.0.0.1:8787/mcp` (or whatever port Wrangler prints).
 
 ## 1. Claude (Desktop or Connectors)
 
@@ -22,8 +20,6 @@ Claude Code:
 ```sh
 claude mcp add --transport http dap-demo https://demo.dealeragentprotocol.com/mcp
 ```
-
-Swap in your local URL if the public host is not live yet.
 
 ## 2. ChatGPT
 
@@ -46,7 +42,7 @@ Add a Streamable HTTP MCP server to your Cursor MCP config:
 }
 ```
 
-Use your local URL until the public host is live. Then restart Cursor and ask a question in a chat that can use tools.
+Restart Cursor and ask a question in a chat that can use tools.
 
 ## 4. MCP Inspector
 
@@ -61,7 +57,7 @@ npx @modelcontextprotocol/inspector --cli \
   --method tools/list
 ```
 
-Until the public host is live, point `--server-url` at your local `/mcp` URL. To exercise the current revision:
+To exercise the current revision:
 
 ```sh
 npx @modelcontextprotocol/inspector --cli \
