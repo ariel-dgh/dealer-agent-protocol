@@ -32,7 +32,35 @@ import { uiHtml, uiResourceUri, uiResourceView, uiResources } from "./demo-ui.mj
 
 export const STANDARD_VERSION = "0.1";
 export const MCP_REVISION = "2026-07-28";
-const SUPPORTED_MCP = ["2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26"];
+const SUPPORTED_MCP = ["2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
+const PROTOCOL_VERSION_META = "io.modelcontextprotocol/protocolVersion";
+const UNSUPPORTED_PROTOCOL_VERSION = -32022;
+const LIST_TTL_MS = 3_600_000;
+const CACHEABLE_METHODS = new Set(["server/discover", "tools/list", "prompts/list", "resources/list", "resources/templates/list", "resources/read"]);
+export { SUPPORTED_MCP };
+
+function isModernProtocol(version) {
+  return version === MCP_REVISION;
+}
+
+function requestedProtocolVersion(message, request) {
+  const header = request?.headers?.get("mcp-protocol-version");
+  const meta = message?.params && typeof message.params === "object" ? message.params._meta?.[PROTOCOL_VERSION_META] : undefined;
+  const initializeVersion = message?.method === "initialize" && typeof message.params?.protocolVersion === "string" ? message.params.protocolVersion : undefined;
+  const candidate = [header, meta, initializeVersion].find((value) => typeof value === "string" && value.trim());
+  return candidate ? candidate.trim() : null;
+}
+
+function decorateModernResult(payload, version, method) {
+  if (!payload?.result || !isModernProtocol(version)) return payload;
+  const result = { resultType: payload.result.resultType || "complete", ...payload.result };
+  if (CACHEABLE_METHODS.has(method)) {
+    if (result.ttlMs == null) result.ttlMs = LIST_TTL_MS;
+    if (!result.cacheScope) result.cacheScope = "public";
+  }
+  return { ...payload, result };
+}
+
 const SERVER_NAME = "dealer-agent-protocol-demo-gateway";
 const SERVER_VERSION = "0.2.0";
 const ORGANIZATION_ID = "org.example-motors";
@@ -763,8 +791,12 @@ function summarize(name, value) {
       return `Availability for ${value.vehicle_id}: ${value.availability.status}, authority ${value.availability.authority_status}, observed ${value.availability.observed_at}, valid until ${value.availability.valid_until}, human verification ${value.availability.human_verification_required ? "required" : "not required"}. Source: ${value.provenance.sources[0].source_name} (synthetic demo; no real dealership system is queried).`;
     case "dealeragent.pricing.get_disclosure": {
       const charges = value.required_dealer_charges.map((item) => `${item.name} ${money(item.amount)} (${item.included_in_advertised_price ? "included in" : "added to"} advertised price)`).join("; ") || "none";
-      const adjustments = value.conditional_adjustments.map((item) => `${item.name} ${item.direction} ${item.amount_status === "known" ? money(item.amount) : item.amount_status}, requires ${item.criteria.map((criterion) => criterion.description || criterion.criterion).join(", ")}`).join("; ") || "none";
-      return `Advertised price ${money(value.advertised_price.amount)} (${value.advertised_price.availability.replace(/_/g, " ")}). Required dealer charges: ${charges}. Conditional adjustments: ${adjustments}. Government charges: ${value.government_charges.status}${value.government_charges.assumptions ? ` (${value.government_charges.assumptions.join(" ")})` : ""}. Unknown never means zero. ${value.disclosure_text} Synthetic demo data.`;
+      const adjustments = value.conditional_adjustments.map((item) => {
+        const amount = item.amount_status === "known" ? money(item.amount) : item.amount_status;
+        const eligibility = (item.criteria || []).map((criterion) => criterion.description || criterion.criterion).filter(Boolean).join("; ");
+        return eligibility ? `${item.name} ${item.direction} ${amount}; eligibility: ${eligibility}` : `${item.name} ${item.direction} ${amount}`;
+      }).join("; ") || "none";
+      return `Advertised price ${money(value.advertised_price.amount)} (${value.advertised_price.availability.replace(/_/g, " ")}). Required dealer charges: ${charges}. Conditional adjustments: ${adjustments.replace(/\.$/, "")}. Government charges: ${value.government_charges.status}${value.government_charges.assumptions ? ` (${value.government_charges.assumptions.join(" ")})` : ""}. Unknown never means zero. ${value.disclosure_text} Synthetic demo data.`;
     }
     case "dealeragent.inventory.get_used_vehicle_details": {
       const reports = value.history_reports.map((report) => `${report.provider_name}: ${report.summary?.accident_status?.replace(/_/g, " ") ?? report.status}`).join("; ");
@@ -1009,10 +1041,25 @@ export default {
       }
       const messages = Array.isArray(body) ? body : [body];
       if (!messages.length) return json(rpcError(null, -32600, "Invalid Request"), 400);
-      const responses = (await Promise.all(messages.map((message) => handleMessage(message, context)))).filter(Boolean);
-      if (!responses.length) return new Response(null, { status: 202, headers: CORS_HEADERS });
+      const responses = [];
+      let httpStatus = 200;
+      let responseVersion = MCP_REVISION;
+      for (const message of messages) {
+        const requested = requestedProtocolVersion(message, request);
+        if (requested && !SUPPORTED_MCP.includes(requested) && message?.method !== "initialize" && !String(message?.method || "").startsWith("notifications/")) {
+          responses.push(rpcError(message?.id, UNSUPPORTED_PROTOCOL_VERSION, "Unsupported protocol version", { supported: [...SUPPORTED_MCP], requested }));
+          httpStatus = 400;
+          continue;
+        }
+        const raw = await handleMessage(message, context);
+        if (!raw) continue;
+        const usedVersion = raw.result?.protocolVersion || (SUPPORTED_MCP.includes(requested) ? requested : null);
+        if (usedVersion) responseVersion = usedVersion;
+        responses.push(decorateModernResult(raw, usedVersion, message?.method));
+      }
+      if (!responses.length) return new Response(null, { status: 202, headers: { ...CORS_HEADERS, "MCP-Protocol-Version": responseVersion } });
       const payload = Array.isArray(body) ? responses : responses[0];
-      return json(payload, 200, { "MCP-Protocol-Version": MCP_REVISION });
+      return json(payload, httpStatus, { "MCP-Protocol-Version": responseVersion });
     }
 
     if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method Not Allowed", { status: 405, headers: CORS_HEADERS });

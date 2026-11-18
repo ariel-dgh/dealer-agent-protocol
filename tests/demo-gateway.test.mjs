@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 import { Validator } from "@cfworker/json-schema";
 
-import worker, { TOOL_SPECS } from "../deployment/cloudflare/demo-gateway-core.mjs";
+import worker, { TOOL_SPECS, SUPPORTED_MCP } from "../deployment/cloudflare/demo-gateway-core.mjs";
 
 const ORIGIN = "https://demo.dealeragentprotocol.com";
 const SCHEMA_DIR = new URL("../spec/v0.1/schemas/", import.meta.url);
@@ -274,4 +274,62 @@ test("text summaries of data tools label the data as synthetic", async () => {
     assert.equal(result.isError, false);
     assert.match(result.content[0].text, /synthetic/i);
   }
+});
+
+async function rpcWithVersion(method, params, version, expectedStatus = 200) {
+  const headers = { "content-type": "application/json", accept: "application/json, text/event-stream" };
+  if (version) headers["mcp-protocol-version"] = version;
+  const body = { jsonrpc: "2.0", id: ++counter, method, params };
+  if (version && method !== "initialize") {
+    body.params = { ...(params || {}), _meta: { "io.modelcontextprotocol/protocolVersion": version } };
+  }
+  const response = await worker.fetch(new Request(`${ORIGIN}/mcp`, { method: "POST", headers, body: JSON.stringify(body) }), env);
+  assert.equal(response.status, expectedStatus, `${method} @ ${version} returned ${response.status}`);
+  return { status: response.status, protocolHeader: response.headers.get("mcp-protocol-version"), message: await response.json() };
+}
+
+test("initialize also negotiates 2025-11-25 and 2024-11-05", async () => {
+  const current = await rpc("initialize", { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "test", version: "0" } });
+  assert.equal(current.result.protocolVersion, "2025-11-25");
+  const oldest = await rpc("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "test", version: "0" } });
+  assert.equal(oldest.result.protocolVersion, "2024-11-05");
+  assert.ok(SUPPORTED_MCP.includes("2026-07-28"));
+});
+
+test("2026-07-28 list and call results include resultType and caching hints", async () => {
+  const listed = await rpcWithVersion("tools/list", {}, "2026-07-28");
+  assert.equal(listed.protocolHeader, "2026-07-28");
+  assert.equal(listed.message.result.resultType, "complete");
+  assert.equal(listed.message.result.cacheScope, "public");
+  assert.equal(listed.message.result.ttlMs, 3_600_000);
+  assert.ok(Array.isArray(listed.message.result.tools));
+  assert.equal(listed.message.result.tools.length, Object.keys(TOOL_SPECS).length);
+
+  const called = await rpcWithVersion("tools/call", { name: "dealeragent.dealer.get", arguments: { organization_id: ORG } }, "2026-07-28");
+  assert.equal(called.message.result.resultType, "complete");
+  assert.equal(called.message.result.isError, false);
+  assert.equal(called.message.result.ttlMs, undefined);
+});
+
+test("legacy 2025-11-25 list results omit modern resultType fields", async () => {
+  const listed = await rpcWithVersion("tools/list", {}, "2025-11-25");
+  assert.equal(listed.protocolHeader, "2025-11-25");
+  assert.equal(listed.message.result.resultType, undefined);
+  assert.equal(listed.message.result.ttlMs, undefined);
+  assert.ok(listed.message.result.tools.length > 0);
+});
+
+test("an unsupported protocol version is rejected with -32022", async () => {
+  const listed = await rpcWithVersion("tools/list", {}, "1999-01-01", 400);
+  assert.equal(listed.message.error.code, -32022);
+  assert.equal(listed.message.error.data.requested, "1999-01-01");
+  assert.deepEqual(listed.message.error.data.supported, SUPPORTED_MCP);
+});
+
+test("pricing summaries do not garble eligibility text", async () => {
+  const result = await call("dealeragent.pricing.get_disclosure", { organization_id: ORG, rooftop_id: DOWNTOWN, vehicle_id: "veh.2024-002" });
+  const textSummary = result.content[0].text;
+  assert.equal(textSummary.includes("requires Dealer verification of current or qualifying prior service is required"), false);
+  assert.match(textSummary, /Military appreciation incentive discount \$500\.00; eligibility: Dealer verification of current or qualifying prior service is required\./);
+  assert.match(textSummary, /synthetic/i);
 });
