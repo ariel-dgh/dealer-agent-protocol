@@ -32,7 +32,7 @@ def write_schema_index(schema_dir: Path) -> None:
         title = html.escape(schema.get("title", path.name))
         links.append(f'<li><a href="{html.escape(path.name)}">{title}</a><code>{html.escape(path.name)}</code></li>')
     page = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"><link rel="canonical" href="https://dealeragentprotocol.com/spec/v0.1/schemas/"><title>JSON Schemas — Dealer Agent Protocol</title></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css?v=20261117-try"><link rel="canonical" href="https://dealeragentprotocol.com/spec/v0.1/schemas/"><title>JSON Schemas — Dealer Agent Protocol</title></head>
 <body><main class="page-shell" style="padding:9vh 0"><p class="eyebrow"><span></span>Version 0.1</p><h1 style="font-size:clamp(54px,9vw,110px)">Normative<br><em>JSON Schemas.</em></h1><p class="lede">Canonical JSON Schema 2020-12 documents for Dealer Agent Protocol.</p><ul class="schema-index">%s</ul><p><a class="button button-secondary" href="/">Return home</a></p></main></body></html>""" % "".join(links)
     (schema_dir / "index.html").write_text(page, encoding="utf-8")
 
@@ -42,14 +42,14 @@ def render_comparison(destination: Path, product: bool) -> None:
     content = markdown.markdown(source, extensions=["tables", "fenced_code"])
     if product:
         brand = '<a class="brand" href="/"><span class="brand-mark">M</span><span>Dealership<br>MCP</span></a>'
-        stylesheet = "/styles.css"
+        stylesheet = "/styles.css?v=20261117-try"
         home = "https://dealershipmcp.com/compare/"
         header_class = "site-header shell"
         main_class = "interior shell markdown-body"
         navigation = '<nav><a href="/visibility/">AI Visibility</a><a href="/ai-search/">AI Search</a><a href="/gateway/">Agent Gateway</a><a href="/live/">Live pilot</a></nav><a class="header-cta" href="/audit/">Start free →</a>'
     else:
         brand = '<a class="wordmark" href="/"><span class="wordmark-mark">D</span><span>Dealer Agent<br>Protocol</span></a>'
-        stylesheet = "/styles.css"
+        stylesheet = "/styles.css?v=20261117-try"
         home = "https://dealeragentprotocol.com/compare/"
         header_class = "site-header page-shell"
         main_class = "page-shell markdown-body"
