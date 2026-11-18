@@ -1,4 +1,8 @@
-const INTERNAL_RECIPIENT = "ariel@dealergrowthhackers.com";
+import { isValidEmail } from "./lead-form-guards.mjs";
+
+export { isValidEmail };
+
+export const INTERNAL_RECIPIENT = "ariel@dealergrowthhackers.com";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -21,11 +25,20 @@ function emailError(error) {
   return error instanceof Error ? { name: error.name, message: error.message, code: error.code || null } : { message: String(error) };
 }
 
+
+function assertSafeAddress(value, label) {
+  if (!isValidEmail(value)) {
+    throw new Error(`invalid_${label}`);
+  }
+}
+
 export async function sendLeadEmails(emailBinding, lead) {
   if (!emailBinding) {
     console.error(JSON.stringify({ event: "lead_email_binding_missing", application_id: lead.id, source: lead.source }));
-    return;
+    throw new Error("email_binding_missing");
   }
+  assertSafeAddress(INTERNAL_RECIPIENT, "internal_recipient");
+  assertSafeAddress(lead.workEmail, "work_email");
 
   const fields = [
     ["Name", lead.contactName],

@@ -27,10 +27,23 @@
       ]
     }
   ],
+  "vars": {
+    "TURNSTILE_SITE_KEY": "replace-with-turnstile-site-key"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEAD_RATE_LIMIT", "class_name": "LeadRateLimiter" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v-lead-rate-limit", "new_sqlite_classes": ["LeadRateLimiter"] }
+  ],
   "routes": [
     {
       "pattern": "replace-with-protocol-domain.example",
       "custom_domain": true
     }
   ]
+  // Secrets (wrangler secret put): TURNSTILE_SECRET.
+  // The EMAIL send_email binding and TURNSTILE_SECRET are required; the worker fails closed without them.
 }
