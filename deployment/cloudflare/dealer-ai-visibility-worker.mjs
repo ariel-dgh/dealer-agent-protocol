@@ -389,6 +389,31 @@ async function reportPage(request, env, shortId) {
   return new Response(html, { status: 200, headers: { ...SECURITY_HEADERS, "Cache-Control": "public, max-age=300", "Content-Type": "text/html; charset=utf-8" } });
 }
 
+function indexNowKeyFromPath(pathname) {
+  const match = /^\/([a-f0-9]{32})\.txt$/.exec(pathname);
+  return match ? match[1] : "";
+}
+
+async function indexNowKeyResponse(request, env) {
+  const key = indexNowKeyFromPath(new URL(request.url).pathname);
+  if (!key || (request.method !== "GET" && request.method !== "HEAD")) return null;
+  const headers = { ...SECURITY_HEADERS, "Cache-Control": "public, max-age=3600", "Content-Type": "text/plain; charset=utf-8" };
+  try {
+    const assetUrl = new URL(request.url);
+    assetUrl.search = "";
+    assetUrl.hash = "";
+    const asset = await env.ASSETS.fetch(new Request(assetUrl, { method: "GET" }));
+    const body = (await asset.text()).replace(/^\uFEFF/, "").trim();
+    if (asset.status !== 200 || body !== key) {
+      return new Response("Not found\n", { status: 404, headers: { ...headers, "Cache-Control": "no-store" } });
+    }
+    return new Response(request.method === "HEAD" ? null : key, { status: 200, headers });
+  } catch (error) {
+    console.error(JSON.stringify({ event: "indexnow_key_failed", error: error?.message || String(error) }));
+    return new Response("Not found\n", { status: 404, headers: { ...headers, "Cache-Control": "no-store" } });
+  }
+}
+
 function secureAsset(response) {
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
@@ -415,6 +440,8 @@ export default {
     const shortMatch = url.pathname.match(/^\/r\/([a-z0-9]{6,20})\/?$/i);
     if (shortMatch) return Response.redirect(`https://dealeraivisibility.com/report/${shortMatch[1]}`, 301);
 
+    const indexNow = await indexNowKeyResponse(request, env);
+    if (indexNow) return indexNow;
     return secureAsset(await env.ASSETS.fetch(request));
   },
   async queue(batch, env) {

@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
+import xml.etree.ElementTree as ET
+from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlparse
@@ -46,6 +49,86 @@ def validate_internal_links(site_root: Path) -> list[str]:
                 failures.append(
                     f"{page.relative_to(site_root)}: broken internal link {href}"
                 )
+    return failures
+
+
+INDEXNOW_KEY_NAME = re.compile(r"^[a-f0-9]{32}\.txt$")
+SITEMAP_NS = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+VISIBILITY_HOST = "dealeraivisibility.com"
+
+
+def visibility_source_for_loc(site_root: Path, loc: str) -> Path | None:
+    parsed = urlparse(loc)
+    if parsed.scheme != "https" or parsed.netloc != VISIBILITY_HOST or parsed.query or parsed.fragment:
+        return None
+    if parsed.path == "/":
+        return site_root / "index.html"
+    relative = parsed.path.lstrip("/")
+    if parsed.path.endswith("/"):
+        return site_root / relative / "index.html"
+    return site_root / relative
+
+
+def html_is_noindex(path: Path) -> bool:
+    if path.suffix != ".html" or not path.is_file():
+        return False
+    for tag in re.findall(r"<meta\b[^>]*>", path.read_text(encoding="utf-8"), flags=re.I):
+        if re.search(r"\brobots\b", tag, flags=re.I) and re.search(r"\bnoindex\b", tag, flags=re.I):
+            return True
+    return False
+
+
+def validate_visibility_indexnow() -> list[str]:
+    failures: list[str] = []
+    source = ROOT / "dealer-ai-visibility-site" / "src"
+    dist = ROOT / "dealer-ai-visibility-site" / "dist"
+    for label, directory in (("src", source), ("dist", dist)):
+        keys = [path for path in directory.glob("*.txt") if INDEXNOW_KEY_NAME.fullmatch(path.name)]
+        if len(keys) != 1:
+            failures.append(f"dealer-ai-visibility-site/{label}: expected one IndexNow key file, found {len(keys)}")
+            continue
+        key = keys[0].stem
+        body = keys[0].read_text(encoding="utf-8").lstrip("\ufeff").strip()
+        if body != key:
+            failures.append(f"{keys[0].relative_to(ROOT)}: key file body does not match {key}.txt")
+    sitemap_path = dist / "sitemap.xml"
+    if source.joinpath("sitemap.xml").is_file() and sitemap_path.is_file():
+        if source.joinpath("sitemap.xml").read_bytes() != sitemap_path.read_bytes():
+            failures.append("dealer-ai-visibility-site: src and dist sitemaps differ")
+    try:
+        root = ET.fromstring(sitemap_path.read_text(encoding="utf-8"))
+    except (ET.ParseError, OSError) as error:
+        failures.append(f"dealer-ai-visibility-site/dist/sitemap.xml: invalid XML ({error})")
+        return failures
+    if root.tag != "{http://www.sitemaps.org/schemas/sitemap/0.9}urlset":
+        failures.append("dealer-ai-visibility-site/dist/sitemap.xml: root is not a sitemap urlset")
+        return failures
+    urls = root.findall("sm:url", SITEMAP_NS)
+    if not urls:
+        failures.append("dealer-ai-visibility-site/dist/sitemap.xml: no URLs")
+    for url in urls:
+        loc = (url.findtext("sm:loc", default="", namespaces=SITEMAP_NS) or "").strip()
+        lastmod = (url.findtext("sm:lastmod", default="", namespaces=SITEMAP_NS) or "").strip()
+        target = visibility_source_for_loc(dist, loc)
+        if target is None or not target.is_file():
+            failures.append(f"dealer-ai-visibility-site/dist/sitemap.xml: {loc or '(missing loc)'} does not exist in the site")
+        elif html_is_noindex(target):
+            failures.append(f"dealer-ai-visibility-site/dist/sitemap.xml: {loc} is noindex")
+        try:
+            date.fromisoformat(lastmod)
+        except ValueError:
+            failures.append(f"dealer-ai-visibility-site/dist/sitemap.xml: {loc} has invalid lastmod {lastmod!r}")
+    for name in ("dealer-ai-visibility.wrangler.jsonc", "dealer-ai-visibility.staging.wrangler.jsonc"):
+        config = (ROOT / "deployment" / "cloudflare" / name).read_text(encoding="utf-8")
+        if "single-page-application" in config:
+            failures.append(f"{name}: IndexNow key must not use SPA not-found handling")
+        if '"not_found_handling": "404-page"' not in config:
+            failures.append(f"{name}: expected not_found_handling 404-page")
+        if "dealer-ai-visibility-site/dist" not in config:
+            failures.append(f"{name}: assets directory is not the visibility dist")
+    worker = (ROOT / "deployment" / "cloudflare" / "dealer-ai-visibility-worker.mjs").read_text(encoding="utf-8")
+    if "text/plain; charset=utf-8" not in worker or "([a-f0-9]{32})" not in worker:
+        failures.append("dealer-ai-visibility-worker.mjs: IndexNow key is not served as text/plain")
     return failures
 
 
@@ -174,6 +257,7 @@ def main() -> int:
         if not (ROOT / "dealer-ai-visibility-site" / "dist" / relative).is_file():
             failures.append(f"dealer-ai-visibility-site/dist/{relative}: missing generated visibility file")
     failures.extend(validate_internal_links(ROOT / "dealer-ai-visibility-site" / "dist"))
+    failures.extend(validate_visibility_indexnow())
 
     required_aeo_audit_files = [
         "index.html", "styles.css", "app.js", "analytics.js", "methodology/index.html",

@@ -18,4 +18,5 @@ coverage.xml
 node_modules/
 .wrangler/
 dist/
+dealer-ai-visibility-site/.last-deployed-ref
 *.log
